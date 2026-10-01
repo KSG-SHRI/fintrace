@@ -1,0 +1,131 @@
+{
+  "note": "Entirely synthetic prices, volumes, and events. No claim about a real security or historical event.",
+  "records": [
+    {
+      "id": "x1",
+      "kind": "bar",
+      "ticker": "XYZ",
+      "event_at": "2025-04-03T14:25:00Z",
+      "available_at": "2025-04-03T14:25:00Z",
+      "source": "synthetic",
+      "close": 100,
+      "volume": 1000
+    },
+    {
+      "id": "x2",
+      "kind": "bar",
+      "ticker": "XYZ",
+      "event_at": "2025-04-03T14:26:00Z",
+      "available_at": "2025-04-03T14:26:00Z",
+      "source": "synthetic",
+      "close": 101,
+      "volume": 1200
+    },
+    {
+      "id": "x3",
+      "kind": "bar",
+      "ticker": "XYZ",
+      "event_at": "2025-04-03T14:27:00Z",
+      "available_at": "2025-04-03T14:27:00Z",
+      "source": "synthetic",
+      "close": 100,
+      "volume": 1100
+    },
+    {
+      "id": "x4",
+      "kind": "bar",
+      "ticker": "XYZ",
+      "event_at": "2025-04-03T14:28:00Z",
+      "available_at": "2025-04-03T14:28:00Z",
+      "source": "synthetic",
+      "close": 102,
+      "volume": 1300
+    },
+    {
+      "id": "x5",
+      "kind": "bar",
+      "ticker": "XYZ",
+      "event_at": "2025-04-03T14:29:00Z",
+      "available_at": "2025-04-03T14:29:00Z",
+      "source": "synthetic",
+      "close": 101,
+      "volume": 1000
+    },
+    {
+      "id": "x6",
+      "kind": "bar",
+      "ticker": "XYZ",
+      "event_at": "2025-04-03T14:30:00Z",
+      "available_at": "2025-04-03T14:30:00Z",
+      "source": "synthetic",
+      "close": 93,
+      "volume": 9000
+    },
+    {
+      "id": "p1",
+      "kind": "bar",
+      "ticker": "PEER1",
+      "event_at": "2025-04-03T14:29:00Z",
+      "available_at": "2025-04-03T14:29:00Z",
+      "source": "synthetic",
+      "close": 200,
+      "volume": 500
+    },
+    {
+      "id": "p2",
+      "kind": "bar",
+      "ticker": "PEER1",
+      "event_at": "2025-04-03T14:30:00Z",
+      "available_at": "2025-04-03T14:30:00Z",
+      "source": "synthetic",
+      "close": 188,
+      "volume": 700
+    },
+    {
+      "id": "q1",
+      "kind": "bar",
+      "ticker": "PEER2",
+      "event_at": "2025-04-03T14:29:00Z",
+      "available_at": "2025-04-03T14:29:00Z",
+      "source": "synthetic",
+      "close": 50,
+      "volume": 600
+    },
+    {
+      "id": "q2",
+      "kind": "bar",
+      "ticker": "PEER2",
+      "event_at": "2025-04-03T14:30:00Z",
+      "available_at": "2025-04-03T14:30:00Z",
+      "source": "synthetic",
+      "close": 47,
+      "volume": 800
+    },
+    {
+      "id": "m1",
+      "kind": "macro",
+      "event_at": "2025-04-03T14:24:00Z",
+      "available_at": "2025-04-03T14:24:00Z",
+      "source": "synthetic",
+      "summary": "Fictional macro bulletin"
+    },
+    {
+      "id": "n1",
+      "kind": "news",
+      "ticker": "XYZ",
+      "event_at": "2025-04-03T14:27:00Z",
+      "available_at": "2025-04-03T14:27:00Z",
+      "source": "synthetic",
+      "summary": "Fictional issuer headline"
+    },
+    {
+      "id": "future1",
+      "kind": "news",
+      "ticker": "XYZ",
+      "event_at": "2025-04-03T14:31:00Z",
+      "available_at": "2025-04-03T14:31:00Z",
+      "source": "synthetic",
+      "summary": "Must be excluded at 14:30"
+    }
+  ]
+}
