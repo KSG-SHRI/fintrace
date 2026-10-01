@@ -14,3 +14,5 @@ jobs:
         run: python -m unittest discover -v
       - name: Exercise synthetic demo
         run: python fintrace.py analyze examples/synthetic_incident.json --ticker XYZ --peers PEER1 PEER2 --cutoff 2025-04-03T14:30:00Z --output report.json
+      - name: Verify exported incident replay
+        run: python fintrace.py verify report.json
