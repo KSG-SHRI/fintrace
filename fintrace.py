@@ -36,10 +36,14 @@ def seal(records: list[dict], cutoff: str, key: bytes | None = None) -> dict:
     limit = instant(cutoff)
     accepted = []
     rejected = []
+    seen_ids = set()
     for record in records:
         for field in ("id", "kind", "event_at", "available_at", "source"):
             if field not in record:
                 raise ValueError(f"{field} missing from record")
+        if not isinstance(record["id"], str) or not record["id"] or record["id"] in seen_ids:
+            raise ValueError(f"invalid or duplicate record id: {record['id']}")
+        seen_ids.add(record["id"])
         event_at, available_at = instant(record["event_at"]), instant(record["available_at"])
         if available_at < event_at:
             raise ValueError(f"record {record['id']} available before its event")
@@ -47,9 +51,7 @@ def seal(records: list[dict], cutoff: str, key: bytes | None = None) -> dict:
             rejected.append(record["id"])
             continue
         accepted.append(record)
-    if len({r["id"] for r in accepted}) != len(accepted):
-        raise ValueError("duplicate record id")
-    accepted.sort(key=lambda r: (r["available_at"], r["id"]))
+    accepted.sort(key=lambda r: (instant(r["available_at"]), r["id"]))
     previous = "0" * 64
     chain = []
     for record in accepted:
@@ -77,9 +79,17 @@ def verify(bundle: dict, key: bytes | None = None) -> bool:
 
 def _bars(records: list[dict], ticker: str) -> list[dict]:
     bars = [r for r in records if r["kind"] == "bar" and r.get("ticker") == ticker]
-    bars.sort(key=lambda r: r["event_at"])
+    bars.sort(key=lambda r: instant(r["event_at"]))
+    seen_times = set()
     for bar in bars:
-        if bar.get("close", 0) <= 0 or bar.get("volume", -1) < 0:
+        timestamp = instant(bar["event_at"])
+        if timestamp in seen_times:
+            raise ValueError(f"duplicate bar timestamp for {ticker}: {timestamp.isoformat()}")
+        seen_times.add(timestamp)
+        close, volume = bar.get("close"), bar.get("volume")
+        if (type(close) not in (int, float) or type(volume) not in (int, float)
+                or not math.isfinite(close) or not math.isfinite(volume)
+                or close <= 0 or volume < 0):
             raise ValueError(f"invalid bar {bar['id']}")
     return bars
 
@@ -97,6 +107,8 @@ def _z(value: float, history: list[float]) -> float | None:
 
 def reconstruct(bundle: dict, ticker: str, peers: list[str], window_minutes: int = 90,
                 key: bytes | None = None) -> dict:
+    if window_minutes <= 0:
+        raise ValueError("window_minutes must be positive")
     if not verify(bundle, key):
         raise ValueError("snapshot integrity check failed")
     cutoff = instant(bundle["manifest"]["cutoff"])
@@ -115,14 +127,17 @@ def reconstruct(bundle: dict, ticker: str, peers: list[str], window_minutes: int
         if peer == ticker:
             continue
         bars = _bars(records, peer)
-        if len(bars) >= 2 and instant(bars[-1]["event_at"]) == instant(latest["event_at"]):
+        if (len(bars) >= 2 and instant(bars[-1]["event_at"]) == instant(latest["event_at"])
+                and instant(bars[-2]["event_at"]) == instant(target[-2]["event_at"])):
             peer_moves[peer] = _return(bars)
-            peer_ids[peer] = bars[-1]["id"]
+            peer_ids[peer] = [bars[-2]["id"], bars[-1]["id"]]
     basket = statistics.median(peer_moves.values()) if peer_moves else None
     residual = current - basket if basket is not None else None
     start = instant(latest["event_at"]) - timedelta(minutes=window_minutes)
-    events = sorted((r for r in records if r["kind"] != "bar" and start <= instant(r["event_at"]) <= instant(latest["event_at"])),
-                    key=lambda r: (r["event_at"], r["id"]))
+    events = sorted((r for r in records if r["kind"] != "bar"
+                     and start <= instant(r["event_at"]) <= instant(latest["event_at"])
+                     and instant(r["available_at"]) <= instant(latest["event_at"])),
+                    key=lambda r: (instant(r["event_at"]), r["id"]))
     scored = []
     for event in events:
         age = abs((instant(latest["event_at"]) - instant(event["event_at"])).total_seconds()) / 60
@@ -137,12 +152,13 @@ def reconstruct(bundle: dict, ticker: str, peers: list[str], window_minutes: int
         assessment = "Peer co-movement is consistent with a broad repricing; cause is not established."
     else:
         assessment = "The target move differs from peers; investigate issuer-specific evidence."
-    return {"ticker": ticker, "as_of": cutoff.isoformat(), "snapshot_root": bundle["manifest"]["root"],
+    return {"ticker": ticker, "requested_peers": peers, "window_minutes": window_minutes,
+            "as_of": cutoff.isoformat(), "snapshot_root": bundle["manifest"]["root"],
             "target_bar_id": latest["id"], "return_pct": round(current * 100, 4),
             "return_z": None if return_z is None else round(return_z, 4),
             "volume_z": None if volume_z is None else round(volume_z, 4),
             "peer_returns_pct": {p: round(v * 100, 4) for p, v in peer_moves.items()},
-            "cross_asset_edges": [{"from": ticker, "to": p, "evidence_ids": [latest["id"], peer_ids[p]],
+            "cross_asset_edges": [{"from": ticker, "to": p, "evidence_ids": [target[-2]["id"], latest["id"], *peer_ids[p]],
                                    "same_direction": current * v > 0,
                                    "return_gap_pct": round((current - v) * 100, 4)} for p, v in peer_moves.items()],
             "peer_median_pct": None if basket is None else round(basket * 100, 4),
@@ -151,6 +167,17 @@ def reconstruct(bundle: dict, ticker: str, peers: list[str], window_minutes: int
             "limitations": ["Temporal proximity and co-movement are not proof of causation.",
                             "Historical availability is only as trustworthy as the supplied source timestamps.",
                             "Options, news and media authenticity need separately licensed or supplied records."]}
+
+
+def verify_incident(envelope: dict, key: bytes | None = None) -> bool:
+    """Check the snapshot and deterministically regenerate the attached report."""
+    try:
+        report = envelope["report"]
+        rerun = reconstruct(envelope["bundle"], report["ticker"], report["requested_peers"],
+                            report["window_minutes"], key)
+        return canonical(rerun) == canonical(report)
+    except (KeyError, TypeError, ValueError, IndexError):
+        return False
 
 
 def sec_filings(cik: str, user_agent: str, cutoff: str) -> list[dict]:
@@ -190,9 +217,18 @@ def main() -> None:
     sec.add_argument("--cik", required=True)
     sec.add_argument("--user-agent", required=True)
     sec.add_argument("--cutoff", required=True)
+    check = sub.add_parser("verify", help="verify an exported snapshot and regenerate its report")
+    check.add_argument("incident", type=Path)
+    check.add_argument("--signing-key-env", help="required for HMAC-signed incidents")
     args = parser.parse_args()
     if args.command == "sec":
         print(json.dumps(sec_filings(args.cik, args.user_agent, args.cutoff), indent=2))
+        return
+    if args.command == "verify":
+        key = os.environ[args.signing_key_env].encode() if args.signing_key_env else None
+        if not verify_incident(json.loads(args.incident.read_text()), key):
+            parser.exit(1, "Incident verification failed\n")
+        print("Incident verified; report reproduced from snapshot")
         return
     source = json.loads(args.records.read_text())
     key = os.environ[args.signing_key_env].encode() if args.signing_key_env else None
